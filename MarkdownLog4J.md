@@ -11,7 +11,6 @@ For example, JNDI can query dns server to make correspondence between a domain n
 The vulnerability takes place because log4j allow request to arbitrary LDAP or DNS server without checking the server response.
 Then, an attacker can build malicious LDAP server and make the application execute a payload hosted on the fake LDAP.
 
-Changed from [sam-the-admin](https://github.com/WazeHell/sam-the-admin).
 
 ## Overview of the Attack
 
